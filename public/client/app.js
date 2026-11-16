@@ -7,6 +7,7 @@ import { gameDraw } from "./gameDraw.js";
 import { keybinderHandler } from "./keybindsHandler.js";
 import { skinShape } from "./skins.js";
 import { censorChat } from "./chatFilter.js";
+import { censorText } from "./dmca.js";
 import * as socketStuff from "./socketinit.js";
 
 const THEME_PALETTE_KEYS = [
@@ -63,6 +64,13 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             }, 10)
         }
     }
+
+    global.setDmcaMode = enabled => {
+        config.game.dmcaMode = enabled;
+        global.cached = {};
+        global.generateTankTree = true;
+        for (const upgrade of gui.upgrades) upgrade[2] = util.requestEntityImage(upgrade[2], gui.color);
+    };
 
     // Build the leaderboard object
     let leaderboardEntries = {};
@@ -195,39 +203,34 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
         }
         // If we are loaded for the first time then load the default options settings.
         if (!localStorage.getItem("loadedForFirstTime")) {
-            document.getElementById("optRenderGui").checked = true;
-            document.getElementById("optRenderLeaderboard").checked = true;
-            document.getElementById("optRenderUpgrades").checked = true;
-            document.getElementById("optRenderMinimap").checked = true;
-            document.getElementById("optRenderNames").checked = true;
-            document.getElementById("optRenderHealth").checked = true;
-            document.getElementById("optRenderScores").checked = true;
-            document.getElementById("optRenderPlayerBars").checked = true;
-            document.getElementById("optFancy").checked = true;
-            document.getElementById("optInterpolation").checked = true;
-            document.getElementById("optLerpAnim").checked = true;
-            document.getElementById("smoothCamera").checked = true;
-            document.getElementById("optFancy").checked = true;
-            document.getElementById("autoLevelUp").checked = true;
-            document.getElementById("optDeltaEntities").checked = true;
-            if (global.mobile) document.getElementById("showCrosshair").checked = true, document.getElementById("showJoystick").checked = true;
+            [
+                "optRenderGui",
+                "optRenderLeaderboard",
+                "optRenderUpgrades",
+                "optRenderMinimap",
+                "optRenderNames",
+                "optRenderHealth",
+                "optRenderScores",
+                "optRenderPlayerBars",
+                "optFancy",
+                "optInterpolation",
+                "optLerpAnim",
+                "optFancy",
+                "autoLevelUp",
+                "optDeltaEntities",
+                "optAllowIngameOptions",
+                "optAutoReconnect"
+            ].forEach(i => {
+                document.getElementById(i).checked = true;
+                util.submitToLocalStorage(i);
+            });
+            if (global.mobile) {
+                ["showCrosshair", "showJoystick"].forEach(i => {
+                    document.getElementById(i).checked = true;
+                    util.submitToLocalStorage(i);
+                });
+            }
             // Dont forget to save it.
-            util.submitToLocalStorage("optRenderGui");
-            util.submitToLocalStorage("optRenderLeaderboard");
-            util.submitToLocalStorage("optRenderUpgrades");
-            util.submitToLocalStorage("optRenderMinimap");
-            util.submitToLocalStorage("optRenderNames");
-            util.submitToLocalStorage("optRenderHealth");
-            util.submitToLocalStorage("optRenderScores");
-            util.submitToLocalStorage("optRenderPlayerBars");
-            util.submitToLocalStorage("showCrosshair");
-            util.submitToLocalStorage("showJoystick");
-            util.submitToLocalStorage("optInterpolation");
-            util.submitToLocalStorage("optLerpAnim");
-            util.submitToLocalStorage("smoothCamera");
-            util.submitToLocalStorage("optFancy");
-            util.submitToLocalStorage("autoLevelUp");
-            util.submitToLocalStorage("optDeltaEntities");
             localStorage.setItem("loadedForFirstTime", "true");
             localStorage.setItem("uiScaleSettings", null);
         }
@@ -245,42 +248,10 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
         keybinderHandler.initalize("sandboxSkillControlSettings", "resetSandboxSkillControls", "sandboxskillkeybinds"); // Sandbox command keys (Skill)
         keybinderHandler.initalize("sandboxAttributeControlSettings", "resetSandboxAttributeControls", "sandboxattributekeybinds"); // Sandbox command keys (Attribute)
 
-        // Tab menu creater
-        global.createTabMenu = (text, type, addDismissButton = false) => {
-            let allowedType = [
-                "warning",
-                "critical",
-                "discord",
-                "stat",
-                "achieve"
-            ];
-            if (allowedType.includes(type)) {
-                let b = document.getElementById("menuTabs");
-                b.style.textAlign = "center";
-                let d = document.createElement("span");
-                d.classList.add("menuTab");
-                d.classList.add(type);
-                d.appendChild(document.createTextNode(`${text}${addDismissButton ? "\xa0\xa0\xa0" : ""}`));
-                if (addDismissButton) {
-                    text = document.createElement("text");
-                    text.style.textDecoration = "underline";
-                    text.href = "javascript:;";
-                    text.appendChild(document.createTextNode("Dismiss"));
-                    text.addEventListener("click", () => d.remove());
-                    d.appendChild(text);
-                }
-                b.appendChild(d);
-                return d;
-            } else throw new Error("Invalid menu tab type.");
-        };
+        // Addon info handler
         try {
             fetch("/version").then(json => json.json()).then(ve => {
                 global.version = ve.ver;
-                if (ve.dev_build) {
-                    global.dev_build = true;
-                    global.createTabMenu(`Open Source Arras ${global.version} (dev build)`, "warning", true);
-                }
-                // Addon info handler
                 let keyValue = localStorage.getItem("playerKeyInputValue");
                 (async function() {
                     let A_response = await fetch(`/api/getAddonAuthors?token=${keyValue}`);
@@ -289,13 +260,6 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                 })();
             });
         } catch { };
-        // Warn the users to turn their phones into landscape.
-        if (global.mobile && window.innerHeight > 1.1 * window.innerWidth) {
-            let tabMenu = global.createTabMenu("Please turn your device to landscape mode.", "warning", true);
-            window.addEventListener("orientationchange", () => {
-                window.innerHeight > 1.1 * window.innerWidth || tabMenu.remove();
-            });
-        };
 
         // Game start stuff
         document.getElementById("startButton").onclick = () => startGame();
@@ -1185,6 +1149,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
         config.graphical.curvyTraps = document.getElementById("optCurvyTraps").checked;
         config.game.autoLevelUp = document.getElementById("autoLevelUp").checked;
         config.game.centeredMinimap = localStorage.getItem("optSelfCenteredMinimapChecked") === "true";
+        config.game.dmcaMode = localStorage.getItem("optDmcaModeChecked") === "true";
         config.lag.unresponsive = document.getElementById("optPredictive").checked;
         config.graphical.sharpEdges = document.getElementById("optSharpEdges").checked;
         config.graphical.renderSkins = document.getElementById("optTankSkins").checked;
@@ -2298,6 +2263,18 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             context.lineWidth /= fill ? 1 : 0.5; // Maintain constant border width
             if (fill) context.fill();
             context.globalAlpha = 1;
+        },
+        drawGunBox = (context, x, y, length, height, aspect, angle, position, pad) => {
+            const h = aspect > 0 ? [height * aspect, height] : [height, -height * aspect],
+                cos = Math.cos(angle),
+                sin = Math.sin(angle),
+                points = [[-position, h[1]], [length * 2 - position, h[0]], [length * 2 - position, -h[0]], [-position, -h[1]]]
+                    .map(([a, b]) => [x + a * cos - b * sin, y + a * sin + b * cos]),
+                xs = points.map(p => p[0]),
+                ys = points.map(p => p[1]),
+                left = Math.min(...xs) - pad,
+                top = Math.min(...ys) - pad;
+            context.fillRect(left, top, Math.max(...xs) - left + pad, Math.max(...ys) - top + pad);
         };
         // The actual drawEntity function
         return (baseColor, x, y, instance, ratio, alpha = 1, scale = 1, lineWidthMult = 1, rot = 0, turretsObeyRot = false, assignedContext = false, turretInfo = false, render = instance.render, smoothsize = false) => {
@@ -2314,6 +2291,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             const indexes = indexStr.split("-");
             const mockupIndex = +indexes[0];
             const m = global.mockups[mockupIndex] || global.missingno[0];
+            const dmcaDesign = config.game.dmcaMode && (m.censor & 2);
             const source = turretInfo === false ? instance : turretInfo;
             const hasHighLayer = (m.turrets || []).some(t => t.layer > 0) || (m.props || []).some(p => p.layer > 0);
             const skin = instance.nameplate && !hasHighLayer && skinShape(instance.name);
@@ -2342,7 +2320,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
 
             // --- Fancy canvas with reduced state setup ---
             let xx = x, yy = y;
-            const useFancyCanvas = DEAIC(assignedContext, alphaFade, m.shape, m.glow, source.guns.length, turrets.length);
+            const useFancyCanvas = !dmcaDesign && DEAIC(assignedContext, alphaFade, m.shape, m.glow, source.guns.length, turrets.length);
 
             if (useFancyCanvas) {
                 context = ctx2;
@@ -2366,6 +2344,12 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
 
             // --- Size ratio cached for body drawing ---
             const sizeRatio = (drawSize / m.size) * m.realSize;
+
+            const dmcaZoom = ratio;
+            if (dmcaDesign) {
+                context.fillStyle = "#000000";
+                context.globalAlpha = alphaFade < 1 && config.graphical.fancyAnimations ? alphaFade : 1;
+            }
 
             // --- Draw turrets beneath with cached values ---
             for (let i = 0; i < turrets.length; i++) {
@@ -2435,6 +2419,12 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                     const gx = g.offset * cosGunAngle;
                     const gy = g.offset * sinGunAngle;
 
+                    if (dmcaDesign) {
+                        context.fillStyle = "#000000";
+                        drawGunBox(context, xx + drawSize * gx, yy + drawSize * gy, drawSize * g.length / 2, drawSize * g.width / 2, g.aspect, gAngle, drawSize * positions[i], 5 * dmcaZoom);
+                        continue;
+                    }
+
                     // Minimize color calculations
                     let gunColor = g.color == null ? color.grey : gameDraw.modifyColor(g.color, baseColor);
                     const gunAlpha = g.alpha === undefined ? 1 : g.alpha;
@@ -2460,7 +2450,11 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                 }
 
                 // Draw body between gun layers
-                if (drawAbove === 0) {
+                if (drawAbove === 0 && dmcaDesign) {
+                    const half = sizeRatio + 11 * dmcaZoom;
+                    context.fillStyle = "#000000";
+                    context.fillRect(xx - half, yy - half, 2 * half, 2 * half);
+                } else if (drawAbove === 0) {
                     context.globalAlpha = !useFancyCanvas && alphaFade < 1 && config.graphical.fancyAnimations ? alphaFade : 1;
                     context.lineWidth = initStrokeWidth * m.strokeWidth;
 
@@ -2513,8 +2507,21 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
 
                     // Draw the body, then overlay the skin.
                     drawBody(context, xx, yy, sizeRatio, m.shape, rot, instance.isProp ? instance.borderless : m.borderless, instance.isProp ? instance.drawFill : m.drawFill, m.imageInterpolation);
-                    if (skin) drawBody(context, xx, yy, 0.9 * (sizeRatio - 3), skin, 0, instance.isProp ? instance.borderless : m.borderless, instance.isProp ? instance.drawFill : m.drawFill, true);
+                    if (skin) drawBody(context, xx, yy, 0.9 * (drawSize - 3 * ratio), skin, 0, instance.isProp ? instance.borderless : m.borderless, instance.isProp ? instance.drawFill : m.drawFill, true);
                 }
+            }
+
+            if (dmcaDesign) {
+                const textSize = 0.65 * sizeRatio;
+                context.save();
+                context.font = "bold " + textSize + "px Ubuntu";
+                context.textAlign = "center";
+                context.textBaseline = "middle";
+                context.fillStyle = "#FFFFFF";
+                context.fillText("DMCA'd", xx, yy - 0.35 * sizeRatio);
+                context.fillText("by Diep", xx, yy + 0.35 * sizeRatio);
+                context.restore();
+                context.globalAlpha = 1;
             }
 
             // --- Draw turrets above with cached trig values ---
@@ -2832,8 +2839,9 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                 y = ratio * instance.render.y - py,
                 baseColor = instance.color;
             if (instance.id === gui.playerid) {
-                x = !config.graphical.smoothcamera && !global.player.isScoping && config.graphical.shakeProperties.CameraShake.shakeStartTime == -1 && !global.died ? 0 : x;
-                y = !config.graphical.smoothcamera && !global.player.isScoping && config.graphical.shakeProperties.CameraShake.shakeStartTime == -1 && !global.died ? 0 : y;
+                const scoped = global.player.isScoping || getNow() < global.player.scopeSettle;
+                x = !config.graphical.smoothcamera && !scoped && config.graphical.shakeProperties.CameraShake.shakeStartTime == -1 && !global.died ? 0 : x;
+                y = !config.graphical.smoothcamera && !scoped && config.graphical.shakeProperties.CameraShake.shakeStartTime == -1 && !global.died ? 0 : y;
                 global.player.screenx = x;
                 global.player.screeny = y;
                 global.player.name = instance.name ?? "";
@@ -3599,7 +3607,8 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
         drawBar(x, x + width, y + height / 2, height - 3 + config.graphical.barChunk, color.black);
         drawBar(x, x + width, y + height / 2, height - 3, color.grey);
         drawBar(x, x + width * gui.__s.getProgress(), y + height / 2, height - 3.5, color.gold);
-        drawText("Level " + gui.__s.getLevel() + " " + gui.class, x + width / 2, config.graphical.oldUIStyle ? y + height / 2 + 8 : y + height / 2 + 9, config.graphical.oldUIStyle ? 20.5 : 21, color.guiwhite, "center", false, 6);
+        const censorClass = config.game.dmcaMode && typeof gui.type === "string" && (global.mockups[parseInt(gui.type)]?.censor & 1);
+        drawText("Level " + gui.__s.getLevel() + " " + (censorClass ? censorText(gui.class) : gui.class), x + width / 2, config.graphical.oldUIStyle ? y + height / 2 + 8 : y + height / 2 + 9, config.graphical.oldUIStyle ? 20.5 : 21, color.guiwhite, "center", false, 6);
         height = 17;
         y -= height + 5;
         if (config.graphical.oldUIStyle) {
@@ -3615,7 +3624,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             }
             drawBar(x + scorewidth - scorelength, x + width - scorewidth - scorelength, y + height / 2, height - extraHeight + config.graphical.barChunk, color.black);
             drawBar(x + scorewidth - scorelength, x + width - scorewidth - scorelength, y + height / 2, height - extraHeight, color.grey);
-            drawBar(x + scorewidth - scorelength, x - scorelength + width * ((scorewidth / width) + ((width - scorewidth * 2) / width) * (1 ? Math.min(1, gui.__s.getKills()[0] / 1) : 1)), y + height / 2, height - extraHeight - 0.5, color.purple);
+            drawBar(x + scorewidth - scorelength, x - scorelength + width * ((scorewidth / width) + ((width - scorewidth * 2) / width) * (1 ? Math.min(1, gui.__s.getKills()[0] / 1) : 1)), y + height / 2, height - extraHeight - 0.5, (gui.__s.getScore() / gui.__s.getKills()[0] <= 40000) ? color.teal : color.purple);
             extraHeight = config.graphical.oldUIStyle ? 5 : 6;
             drawText("Kills: " + util.formatKills(...gui.__s.getKills()), x + width / 2 - scorelength, y + height / 2 + extraHeight, config.graphical.oldUIStyle ? 12 : 13, color.guiwhite, "center");
             extraHeight = config.graphical.oldUIStyle ? 5 : 3;
@@ -3681,9 +3690,9 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                     H = global.roomSetup.length,
                     i = 0;
 
-                // Calculate player's position in game world
-                let playerWorldX = global.player.cx.animX;
-                let playerWorldY = global.player.cy.animY;
+                // Use the rendered camera, not the unsmoothed position.
+                let playerWorldX = global.player.camX;
+                let playerWorldY = global.player.camY;
 
                 for (let ycell = 0; ycell < H; ycell++) {
                     let j = 0;
@@ -3729,8 +3738,8 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                 ctx[2].globalAlpha = entity.alpha;
 
                 // Calculate entity position relative to player
-                let relX = entity.x - global.player.cx.animX;
-                let relY = entity.y - global.player.cy.animY;
+                let relX = entity.x - global.player.camX;
+                let relY = entity.y - global.player.camY;
 
                 // Convert to minimap coordinates
                 let minimapX = config.game.centeredMinimap ? centerX + (relX / global.gameWidth) * len : x + (entity.x / global.gameWidth + 0.5) * len;
@@ -3762,7 +3771,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             ctx[2].strokeStyle = color.guiblack;
             ctx[2].fillStyle = color.guiblack;
             // Draw yourself in the minimap
-            drawGuiCircle(config.game.centeredMinimap ? centerX : x + (global.player.cx.animX / global.gameWidth + 0.5) * len, config.game.centeredMinimap ? centerY : y + (global.player.cy.animY / global.gameHeight + 0.5) * height, !global.mobile ? 2 : 3.5, false);
+            drawGuiCircle(config.game.centeredMinimap ? centerX : x + (global.player.camX / global.gameWidth + 0.5) * len, config.game.centeredMinimap ? centerY : y + (global.player.camY / global.gameHeight + 0.5) * height, !global.mobile ? 2 : 3.5, false);
             ctx[2].restore();
             ctx[2].globalAlpha = 1;
             ctx[2].fillStyle = color.black;
@@ -4611,11 +4620,21 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
         // Don't move the camera if you're dead. This helps with jitter issues
         let playerx = global.player.animX.get(tick);
         let playery = global.player.animY.get(tick);
+        // Scope changes teleport the camera; restart the prediction so the
+        // predictor doesn't extrapolate the world from the old position.
+        if (global.player.isScoping !== global.player.isAiming) {
+            global.player.lastx = global.player.cx.x;
+            global.player.lasty = global.player.cy.y;
+            global.player.lastvx = global.player.vx;
+            global.player.lastvy = global.player.vy;
+            global.player.scopeSettle = getNow() + 600;
+        }
+        global.player.isAiming = global.player.isScoping;
         if (config.graphical.lerpAnimations) {
             global.player.renderx = util.lerp(global.player.renderx, global.player.cx.x, 0.1, true);
             global.player.rendery = util.lerp(global.player.rendery, global.player.cy.y, 0.1, true);
-        } else if (config.graphical.smoothcamera && config.graphical.shakeProperties.CameraShake.shakeStartTime == -1) {
-            let n = null == tickMotion ? 0 : 0.99 ** tickMotion;
+        } else if ((config.graphical.smoothcamera || global.player.isScoping || getNow() < global.player.scopeSettle) && config.graphical.shakeProperties.CameraShake.shakeStartTime == -1) {
+            let n = null == tickMotion ? 0 : config.graphical.smoothcamera ? 0.99 ** tickMotion : Math.exp(-tickMotion / 55);
             global.player.renderx = global.player.renderx * n + playerx * (1 - n);
             global.player.rendery = global.player.rendery * n + playery * (1 - n);
         } else if (!config.graphical.interpolation) {
@@ -4626,8 +4645,9 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             global.player.rendery = playery;
         }
         if (config.graphical.shakeProperties.CameraShake.shakeStartTime !== -1) applyScreenShake();
-        global.player.cx.animX = playerx;
-        global.player.cy.animY = playery;
+        // Use the camera the world is drawn with for the minimap so the two can't desync.
+        global.player.cx.animX = global.player.camX = global.player.renderx;
+        global.player.cy.animY = global.player.camY = global.player.rendery;
         let px = ratio * global.player.renderx,
             py = ratio * global.player.rendery;
 
@@ -5455,6 +5475,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                 if (cb.id === "optBrainrotFilter") global.refreshBrainrotOption();
                 if (cb.id === "optCrosshairCursor") global.applyCrosshairCursor();
                 if (cb.id === "optRainbowTeamColors") config.game.rainbowTeamColors = !!cb.value;
+                if (cb.id === "optDmcaMode") global.setDmcaMode(!!cb.value);
                 if (cb.id === "optSelfCenteredMinimap") config.game.centeredMinimap = !!cb.value;
                 if (cb.id === "optForce169AspectRatio") config.graphical.force169AspectRatio = !!cb.value;
                 if (cb.id === "optLegacyThemes") global.refreshSecretThemes();
@@ -5633,8 +5654,8 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
         const PANEL_VISIBLE_X = mainMenuAnim;
         const PANEL_HIDDEN_X = PANEL_VISIBLE_X - PANEL_WIDTH - 20;
         const PANEL_X = PANEL_HIDDEN_X + (PANEL_VISIBLE_X - PANEL_HIDDEN_X) - extraLeftX;
-        const fullBox = (global.optionsCheckboxes || []).find(cb => cb.id === "optFullSecretOptions");
-        const fullUnlocked = fullBox ? !!fullBox.value : localStorage.getItem("optFullSecretOptionsChecked") === "true";
+        const fullBox = (global.optionsCheckboxes || []).find(cb => cb.id === "optSuperSecretOptions");
+        const fullUnlocked = fullBox ? !!fullBox.value : localStorage.getItem("optSuperSecretOptionsChecked") === "true";
         const secretPanelH = SECRET_PANEL_H + (fullUnlocked ? 40 : 0);
         const TAB_CONTENT_HEIGHTS = [
             (PANEL_Y + 685 + 1 * 40 + 45) - PANEL_Y,  // perf section: last row baseY + 1 row + padding
@@ -5797,6 +5818,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
             drawText("Performance",     PANEL_X + PANEL_WIDTH / 2, PANEL_Y + OV_TITLE_TOP + 680, 15.5, color.guiwhite, "center");
 
             if (!global.optionsCheckboxes) {
+                let legacyOptionNotice = "\nNote: This is a legacy option and will be removed in a future update.";
                 global.optionsCheckboxes = [
                     // Game Appearance
                     { type: "checkbox",   id: "optRenderNames",         label: "Player Names",          column: 0, row: 0, section: "appearance", tooltip: "Show player names." },
@@ -5831,7 +5853,7 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                     { type: "checkbox", id: "optCurvyTraps",          label: "Curvy Traps",           column: 1, row: 3, section: "appearance", tooltip: "Add curvature to the sides of traps.\n" + "May slightly lower the frame rate." },
                     { type: "checkbox", id: "optTankSkins",           label: "Tank Skins",            column: 1, row: 4, section: "appearance", tooltip: "Show tank skins.\n" + "Note: Skins will be in grayscale if the low WebGl driver is selected." },
                     //{ type: "checkbox", id: "optHexaGrid",            label: "Hexagon Grid",          column: 1, row: 5, section: "appearance", tooltip: "Make the background grid hexagonal.\n" + "May slightly lower the frame rate." },
-                    { type: "checkbox", id: "optFullSecretOptions",   label: "Full Secret Options",   column: 1, row: 5, section: "appearance", tooltip: "Unlock more of the secret options tab.\n" + "Note: This is not supposed to be public..." },
+                    { type: "checkbox", id: "optSuperSecretOptions",  label: "Super Secret Options",   column: 1, row: 5, section: "appearance", tooltip: "Unlock the super secret options section.\n" + "Note: This is not supposed to be public..." },
 
                     // UI Elements
                     { type: "checkbox", id: "optRenderUpgrades",      label: "Upgrades",              column: 0, row: 0, section: "ui", tooltip: "Toggle the visibility of the class and skill upgrade menus." },
@@ -5890,31 +5912,28 @@ const THEME_V1_MAGIC = "\x6a\xba\xda\xb3\xf0";
                         data.optionService.selected = data.label;
                       }
                     },
-                    { type: "checkbox",  id: "optLowResolution",       label: "Low Resolution",        column: 1, row: 0, section: "perf", tooltip: "Lower the game's resolution.\nMay help to improve the frame rate." },
+                    { type: "checkbox",  id: "optLowResolution",       label: "Low Resolution",         column: 1, row: 0, section: "perf", tooltip: "Lower the game's resolution.\nMay help to improve the frame rate." },
 
                     // Secrets
                     { type: "checkbox", id: "optCrosshairCursor",     label: "Crosshair Cursor",        column: 0, row: 0, section: "secret", tooltip: "Use a crosshair for the cursor." },
                     { type: "checkbox", id: "optRainbowTeamColors",   label: "Rainbow Team Colors",     column: 1, row: 0, section: "secret", tooltip: "Replace the colors of the teams with colors of the rainbow." },
-                    { type: "checkbox", id: "optUncappedFrameRate",   label: "Uncapped Frame Rate",     column: 0, row: 1, section: "secret", tooltip: "Attempt to render as many frames as possible, regardless of your monitor FPS.\nNote that this option is unlikely to actually improve game performance, and may cause crashes or significant lag on weaker devices." },
-                    { type: "checkbox", id: "optCopyScreenshots",     label: "Copy Screenshots",        column: 1, row: 1, section: "secret", tooltip: "Copy screenshots to the clipboard instead of downloading them." },
-                    { type: "checkbox", id: "optForce169AspectRatio", label: "Force 16:9 Aspect Ratio", column: 0, row: 2, section: "secret", tooltip: "Always use a 16:9 aspect ratio to render the game." },
-                    { type: "checkbox", id: "optSelfCenteredMinimap", label: "Self Centered Minimap",   column: 1, row: 2, section: "secret", tooltip: "Make yourself always centered on the minimap." },
-                    { type: "checkbox", id: "optBrainrotFilter",      label: '"Brainrot" Filter',       column: 0, row: 3, section: "secret", tooltip: "Add the option to filter \"brainrot\" words." },
-                    { type: "checkbox", id: "optShowLocalhost",       label: "Show Localhost",          column: 0, row: 4, section: "secret", fullSecret: true, tooltip: "Display wss://localhost:5000 as one of the servers." },
-                    { type: "checkbox", id: "optDmcaMode",            label: "DMCA Mode",               column: 1, row: 3, section: "secret", fullSecret: true, placeholder: true, tooltip: "[WIP] Censor the names and designs of all tanks which also appear in diep.io to comply with 3AM Experiences LLC's DMCA notices." },
-                    { type: "checkbox", id: "optDebugBoxes",          label: "Debug Boxes",             column: 1, row: 4, section: "secret", fullSecret: true, placeholder: true, tooltip: "[WIP] Show debug boxes.\nNote: This option only works when debug assertions are enabled." },
+                    { type: "checkbox", id: "optCopyScreenshots",     label: "Copy Screenshots",        column: 0, row: 1, section: "secret", tooltip: "Copy screenshots to the clipboard instead of downloading them." },
+                    { type: "checkbox", id: "optForce169AspectRatio", label: "Force 16:9 Aspect Ratio", column: 1, row: 1, section: "secret", tooltip: "Always use a 16:9 aspect ratio to render the game." },
+                    { type: "checkbox", id: "optSelfCenteredMinimap", label: "Self Centered Minimap",   column: 0, row: 2, section: "secret", tooltip: "Make yourself always centered on the minimap." },
+                    { type: "checkbox", id: "optBrainrotFilter",      label: '"Brainrot" Filter',       column: 1, row: 2, section: "secret", tooltip: "Add the option to filter \"brainrot\" words." },
+                    { type: "checkbox", id: "optShowLocalhost",       label: "Show Localhost",          column: 1, row: 3, section: "secret", fullSecret: true, tooltip: "Display wss://localhost:5000 as one of the servers." },
+                    { type: "checkbox", id: "optDmcaMode",            label: "DMCA Mode",               column: 0, row: 3, section: "secret", fullSecret: true, tooltip: "Censor the names and designs of all tanks which also appear in diep.io to comply with 3AM Experiences LLC's DMCA notices." },
+                    { type: "checkbox", id: "optDebugBoxes",          label: "Debug Boxes",             column: 0, row: 4, section: "secret", fullSecret: true, placeholder: true, tooltip: "[WIP] Show debug boxes.\nNote: This option only works when debug assertions are enabled." },
 
                     // Beta
                     { type: "checkbox", id: "optSaveSkillUpgrades",   label: "Save Skill Upgrades",     column: 0, row: 0, section: "beta", tooltip: "Add the ability save and load up to 10 sets of skill upgrades." }, // [sic], misspelling exists in arras.io too
-                    { type: "checkbox", id: "optPlayerListPreview",   label: "Player List (Preview)",   column: 1, row: 0, section: "beta", placeholder: true, tooltip: "[WIP] Display a list of players you have recently interacted with\nNote: Players reports are not yet fully implemented." }, // [sic], same reason as above
+                    { type: "checkbox", id: "optPlayerListPreview",   label: "Player List",             column: 1, row: 0, section: "beta", placeholder: true, tooltip: "[WIP] Display a list of players you have recently interacted with\nNote: Players reports are not yet fully implemented." }, // [sic], same reason as above
 
                     // Legacy
-                    {
-                        type: "checkbox", id: "opt3DMode",          label: "3D Mode",       column: 0, row: 0, section: "legacy", placeholder: true, tooltip: "[WIP] Make arras.io 3D.\nMay lower the frame rate.\nNote: This is a legacy option and will be removed in a future update." },
-                    {
-                        type: "checkbox", id: "optLegacyThemes",    label: "Legacy Themes", column: 1, row: 0, section: "legacy", tooltip: "Display legacy themes in the options menu.\nNote: This is a legacy option and will be removed in a future update." },
-                    {
-                        type: "checkbox", id: "optUnscaledOldSpawnPanel", label: "Unscaled Old Spawn Panel", column: 0, row: 1, section: "legacy", placeholder: true, tooltip: "[WIP] Scale the original spawn panel to look the same regardless of display size." },
+                    { type: "checkbox", id: "opt3DMode",                label: "3D Mode",                  column: 0, row: 0, section: "legacy", placeholder: true, tooltip: `[WIP] Make arras.io 3D.\nMay lower the frame rate.${legacyOptionNotice}` },
+                    { type: "checkbox", id: "optLegacyThemes",          label: "Legacy Themes",            column: 1, row: 0, section: "legacy", tooltip: `Display legacy themes in the options menu.${legacyOptionNotice}` },
+                    { type: "checkbox", id: "optUncappedFrameRate",     label: "Uncapped Frame Rate",      column: 0, row: 1, section: "legacy", tooltip: "Attempt to render as many frames as possible, regardless of your monitor FPS.\nNote that this option is unlikely to actually improve game performance, and may cause crashes or significant lag on weaker devices." },
+                    { type: "checkbox", id: "optUnscaledOldSpawnPanel", label: "Unscaled Old Spawn Panel", column: 1, row: 1, section: "legacy", placeholder: true, tooltip: "[WIP] Scale the original spawn panel to look the same regardless of display size." },
                 ];
 
                 for (const cb of global.optionsCheckboxes) {

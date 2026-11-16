@@ -5,7 +5,6 @@ console.log("Importing modules...\n");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
-const url = require("url");
 const pjson = require("../package.json");
 
 const { Worker } = require("worker_threads");
@@ -147,7 +146,7 @@ server = http.createServer((req, res) => {
             readString = JSON.stringify(countPlayers);
         } break;
         case "/version": {
-            readString = JSON.stringify({ver: "v" + pjson.version, dev_build: Config.dev_build});
+            readString = JSON.stringify({ver: `v${pjson.version}${Config.dev_build ? "-dev" : ""}`});
         } break;
         
         case "/api/getAddonAuthors": {

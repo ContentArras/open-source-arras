@@ -98,30 +98,42 @@ let Region = (size) => {
 
 let gameDraw;
 
+// Keys and other mathematical constants.
 const global = {
-    // Keys and other mathematical constants.
-    KEY_AUTO_FIRE: "KeyE",
-    KEY_AUTO_ALT: "KeyX",
-    KEY_AUTO_SPIN: "KeyC",
-    KEY_SPIN_LOCK: "KeyP",
-    KEY_OVERRIDE: "KeyR",
-    KEY_LEVEL_UP: "KeyN",
-    KEY_ABILITY: "KeyF",
-    KEY_PAUSE: "KeyG",
-    KEY_REVERSE_TANK: "KeyV",
-    KEY_REVERSE_MOUSE: "KeyB",
-    KEY_SCREENSHOT: "KeyQ",
-    KEY_SKILL_MAX: "KeyM",
-    KEY_UPGRADE_SKILL_SAVE: -1,
-    KEY_UPGRADE_SKILL_LOAD: -1,
-    KEY_CLASS_TREE: "KeyT",
-    KEY_RECORD: "KeyZ",
-    KEY_PING: "KeyL",
+    // Main Controls
+    KEY_PRIMARY: "Space",
+    KEY_SECONDARY: "ShiftLeft",
+    KEY_TERTIARY: "KeyX",
+    KEY_SCOPE: "KeyV",
+
+    KEY_PRIMARY_MOUSE: -1,
+    KEY_SECONDARY_MOUSE: -1,
+    KEY_TERTIARY_MOUSE: -1,
+    KEY_SCOPE_MOUSE: -1,
 
     KEY_UP: "KeyW",
     KEY_LEFT: "KeyA",
     KEY_DOWN: "KeyS",
     KEY_RIGHT: "KeyD",
+
+    KEY_UP_ARROW: "ArrowUp",
+    KEY_LEFT_ARROW: "ArrowLeft",
+    KEY_DOWN_ARROW: "ArrowDown",
+    KEY_RIGHT_ARROW: "ArrowRight",
+
+    // Additional Keybinds
+    KEY_AUTO_FIRE: "KeyE",
+    KEY_AUTO_ALT: "KeyQ",
+    KEY_AUTO_SPIN: "KeyC",
+    KEY_SPIN_LOCK: "KeyG",
+    KEY_OVERRIDE: "KeyR",
+    KEY_REVERSE_TANK: "KeyN",
+    KEY_ALT_CONTROLS: "KeyB",
+    KEY_SPECIAL: "Backquote",
+    KEY_ABILITY: "KeyF",
+    KEY_LEVEL_UP: -1,
+    KEY_PAUSE: "KeyP",
+    KEY_SELF_DESTRUCT: "KeyO",
 
     KEY_UPGRADE_1: "KeyY",
     KEY_UPGRADE_2: "KeyU",
@@ -129,6 +141,8 @@ const global = {
     KEY_UPGRADE_4: "KeyH",
     KEY_UPGRADE_5: "KeyJ",
     KEY_UPGRADE_6: "KeyK",
+    // Other KEY_UPGRADE_# values are defined as needed
+    KEY_SKILL_MAX: "KeyM",
 
     KEY_SKILL_1: "Digit1",
     KEY_SKILL_2: "Digit2",
@@ -140,13 +154,36 @@ const global = {
     KEY_SKILL_8: "Digit8",
     KEY_SKILL_9: "Digit9",
     KEY_SKILL_10: "Digit0",
+    KEY_SKILL_LOAD: -1,
+    KEY_SKILL_SAVE: -1,
 
-    KEY_MOUSE_0: "Space",
-    KEY_MOUSE_2: "ShiftLeft",
+    KEY_PING: "KeyL",
+    KEY_CLASS_TREE: "KeyT",
+    KEY_SCREENSHOT: "F2",
+    KEY_RECORD: "F3",
 
-    KEY_SUICIDE: "KeyO",
+    // Alternate Controls
+    KEY_PRIMARY_ALT: "ShiftLeft",
+    KEY_SECONDARY_ALT: "Space",
+    KEY_TERTIARY_ALT: "KeyX",
+    KEY_SCOPE_ALT: "KeyV",
 
-    KEY_SPECIAL: "Backquote",
+    KEY_PRIMARY_MOUSE_ALT: -1,
+    KEY_SECONDARY_MOUSE_ALT: -1,
+    KEY_TERTIARY_MOUSE_ALT: -1,
+    KEY_SCOPE_MOUSE_ALT: -1,
+
+    KEY_UP_ALT: "KeyW",
+    KEY_LEFT_ALT: "KeyA",
+    KEY_DOWN_ALT: "KeyS",
+    KEY_RIGHT_ALT: "KeyD",
+
+    KEY_UP_ARROW_ALT: "ArrowUp",
+    KEY_LEFT_ARROW_ALT: "ArrowLeft",
+    KEY_DOWN_ARROW_ALT: "ArrowDown",
+    KEY_RIGHT_ARROW_ALT: "ArrowRight",
+
+    // Sandbox Keybinds
     KEY_SPECIAL_HELP: "Slash",
     KEY_SPECIAL_HELP_ALT: "F1",
 
@@ -154,7 +191,6 @@ const global = {
     KEY_SPECIAL_PRESET_2: "Digit2",
     KEY_SPECIAL_PRESET_3: "Digit3",
     KEY_SPECIAL_PRESET_4: "Digit4",
-    KEY_SPECIAL_PRESET_5: "Digit5",
     KEY_SPECIAL_BASIC: "KeyQ",
 
     KEY_SPECIAL_TELEPORT: "KeyE",
@@ -197,7 +233,7 @@ const global = {
     KEY_SPECIAL_ATTRIBUTE_RECOIL: "KeyR",
     KEY_SPECIAL_ATTRIBUTE_ARENA_EDGE: "KeyO",
     KEY_SPECIAL_ATTRIBUTE_WALL: "KeyW",
-    KEY_SPECIAL_ATTRIBUTE_SCORE: "KeyK",
+    KEY_SPECIAL_ATTRIBUTE_SCORE: "KeyS",
 
     KEY_SPECIAL_BAN: "KeyO",
 
@@ -217,12 +253,14 @@ const global = {
     // lines up with the "`" + key" operator commands from server/keyCommands.js
     // "attribute" and "skill" are the code sent alongside KEY_SPECIAL_ATTRIBUTE or
     // KEY_SPECIAL_SKILL once that prefix key has been armed idk also see the handleOperatorKey below
+
+    // note from tgs - why isnt this just defined automatically
     operatorKeyboardRows: [
         [
             { label: "1", code: "KEY_SPECIAL_PRESET_1" },
             { label: "2", code: "KEY_SPECIAL_PRESET_2" },
             { label: "3", code: "KEY_SPECIAL_PRESET_3" },
-            { label: "4" },
+            { label: "4", code: "KEY_SPECIAL_PRESET_4" },
             { label: "5" },
             { label: "6" },
             { label: "7" },
@@ -242,17 +280,17 @@ const global = {
             { label: "U" },
             { label: "I", code: "KEY_SPECIAL_INVINCIBLE" },
             { label: "O", code: "KEY_SPECIAL_BAN", attribute: "KEY_SPECIAL_ATTRIBUTE_ARENA_EDGE" },
-            { label: "P", code: "KEY_SPECIAL_POLICE" },
+            { label: "P" },
         ],
         [
             { label: "A", code: "KEY_SPECIAL_ATTRIBUTE", prefix: "attribute" },
-            { label: "S", code: "KEY_SPECIAL_SKILL", prefix: "skill" },
+            { label: "S", code: "KEY_SPECIAL_SKILL", prefix: "skill", attribute: "KEY_SPECIAL_ATTRIBUTE_SCORE" },
             { label: "D", code: "KEY_SPECIAL_DRAG", skill: "KEY_SPECIAL_SKILL_REMOVE" },
             { label: "F", skill: "KEY_SPECIAL_SKILL_ADD" },
             { label: "G", code: "KEY_SPECIAL_DATA", skill: "KEY_SPECIAL_SKILL_CAP_REMOVE" },
             { label: "H", code: "KEY_SPECIAL_HEAL", skill: "KEY_SPECIAL_SKILL_CAP_ADD" },
             { label: "J" },
-            { label: "K", code: "KEY_SPECIAL_KILL", attribute: "KEY_SPECIAL_ATTRIBUTE_SCORE" },
+            { label: "K", code: "KEY_SPECIAL_KILL" },
             { label: "L", attribute: "KEY_SPECIAL_ATTRIBUTE_LEADERBOARD" },
             { label: ";", code: "KEY_SPECIAL_PROMOTE" },
             { label: "'", code: "KEY_SPECIAL_DEMOTE" },
@@ -526,6 +564,10 @@ handleOperatorKeyDown: function (key) {
             lastx: global.player.x,
             lasty: global.player.y,
             isScoping: false,
+            isAiming: false,
+            scopeSettle: 0,
+            camX: 0,
+            camY: 0,
             screenx: 0,
             screeny: 0,
             renderv: 2000,
@@ -551,7 +593,6 @@ handleOperatorKeyDown: function (key) {
     },
     tankTree: (type) => {
         if (type === "open") {
-            if (global.died) return;
             global.showTree = true;
             global.pullUpgradeMenu = true;
             global.pullSkillBar = true;
